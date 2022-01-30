@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.31105.61
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{12A8118C-8080-4406-9ECE-DD3C4DDDE181}") = "TShockFastDeploy", "TShockFastDeploy\TShockFastDeploy.csproj", "{1A93568B-481A-40FF-BBC2-006BC650E9B6}"
+Project("{5F2785F3-10BC-4947-8DA7-D85DA2678AF6}") = "TShockFastDeploy", "TShockFastDeploy\TShockFastDeploy.csproj", "{BF3D7C1C-727C-4294-A314-7071D8CEDB11}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -11,15 +11,15 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{1A93568B-481A-40FF-BBC2-006BC650E9B6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{1A93568B-481A-40FF-BBC2-006BC650E9B6}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{1A93568B-481A-40FF-BBC2-006BC650E9B6}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{1A93568B-481A-40FF-BBC2-006BC650E9B6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BF3D7C1C-727C-4294-A314-7071D8CEDB11}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BF3D7C1C-727C-4294-A314-7071D8CEDB11}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BF3D7C1C-727C-4294-A314-7071D8CEDB11}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BF3D7C1C-727C-4294-A314-7071D8CEDB11}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {921C18B2-9B04-46B3-B682-3F08250DCBE8}
+		SolutionGuid = {40145C17-4B12-4C3C-8A9B-526E0D83E1AA}
 	EndGlobalSection
 EndGlobal
