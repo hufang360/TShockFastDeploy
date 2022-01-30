@@ -1,0 +1,67 @@
+1、下载 → 解压
+
+2、双击 TerrariaServer.exe 启动TShock
+
+3、熟悉TShock命令行界面，并选择一个世界进行开服
+
+4、权限设置
+```shell
+# 第1部分
+/group addperm default tshock.world.editspawn tshock.world.movenpc tshock.world.toggleparty tshock.world.time.usesundial tshock.npc.startinvasion tshock.npc.startdd2 tshock.npc.spawnpets tshock.npc.hurttown
+# 第2部分
+/group addperm default tshock.tp.rod tshock.tp.wormhole tshock.tp.pylon tshock.tp.tppotion tshock.tp.magicconch tshock.tp.demonconch
+# 第3部分
+/group addperm default tshock.ignore.removetile tshock.ignore.liquid tshock.ignore.noclip tshock.ignore.paint tshock.ignore.placetile tshock.ignore.projectile tshock.ignore.damage tshock.ignore.sendtilesquare
+
+# 添加GM用户组
+/group add GM * !tshock.ignore.ssc
+```
+
+5、输入 /exit 关服
+
+6、打开名为 tshock 的文件夹
+
+7、备份 tshock.sqlite
+
+8、设置进服需要登录
+    编辑 config.json
+    - 第83行    "RequireLogin": true,
+
+    这些设置项能改善游戏体验哦
+    - 第10行（调试日志）    "DebugLogs": false,
+    - 第14行（关闭世界存档提示）    "AnnounceSave": false,
+    - 第56行（强制圣诞节）    "ForceXmas": true,
+    - 第57行（强制万圣节）    "ForceHalloween": true,
+    - 第36行（关闭墓碑生成）    "DisableTombstones": true,
+    - 第37行（ftw机械骷髅王不炸图）    "DisablePrimeBombs": true,
+    - 第59行（复活时间设置为10秒）    "RespawnSeconds": 10,
+    - 第60行（boss战复活时间设置为20秒）    "RespawnBossSeconds": 20,
+    - 第126行（头顶显示聊天框内容）    "EnableChatAboveHeads": true,
+
+
+9、开启强制开荒（SSC）
+    编辑 sscconfig.json
+    - 第3行    "Enabled": true,
+
+10、再次 启动TShock
+
+11、注册和登录
+
+12、将服主分配到GM组，GM=GameManager
+```shell
+# 添加GM用户组
+/group add GM * !tshock.ignore.ssc
+/user group hf GM
+```
+
+13、模块化
+    /tshock-client/
+    /tshock/
+    world.wld
+    一键开服.bat
+
+一键开服.bat
+```bash
+".\tshock-client\TerrariaServer.exe" -lang 7 -world world.wld
+pause
+```

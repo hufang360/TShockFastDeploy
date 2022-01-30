@@ -65,9 +65,9 @@ namespace Plugin
                 "tshock.tp.rod",                                 // 混沌传送法杖
 
                 "tshock.world.toggleparty",             // 开派对
-                "tshock.world.time.usesundial",     // 使用日晷
-                "tshock.world.editspawn",			 // 设置全图玩家的出生点
-                "tshock.world.movenpc",			    // 移动NPC
+                "tshock.world.time.usesundial",     // 附魔日晷
+                "tshock.world.editspawn",			 // 设置出生点
+                "tshock.world.movenpc",			    // 为NPC分配房屋
 
                 "tshock.npc.hurttown",				// 伤害NPC
                 "tshock.npc.startinvasion",		  // 召唤入侵
@@ -81,7 +81,7 @@ namespace Plugin
                 "tshock.ignore.placetile",           // 忽略 替换方块 检测
                 "tshock.ignore.projectile",         // 忽略 射弹 检测
                 "tshock.ignore.damage",           // 忽略 高伤害 检测
-                "tshock.ignore.sendtilesquare",	// 忽略 修改地图限制(锤击改变飞镖机关方向)
+                "tshock.ignore.sendtilesquare",	// 允许 锤击改变飞镖机关方向
             };
             string msg = "";
             bool success = AddPerm("default", perms, out msg);
