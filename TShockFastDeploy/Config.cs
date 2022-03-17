@@ -32,6 +32,9 @@ namespace Plugin
 
         // 保存地图提示
         public bool AnnounceSave = false;
+        
+        // 自动备份提示
+        public bool ShowBackupAutosaveMessages = false;
 
         // 头顶聊天文字显示
         public bool EnableChatAboveHeads = true;
@@ -97,6 +100,29 @@ namespace Plugin
            };
         }
 
+        public static List<string> GetJourneyPerms()
+        {
+           return new List<string>(){
+                "tshock.journey.research",      // 物品复制
+                "tshock.journey.time.freeze",   //时间冻结
+                "tshock.journey.time.set",      // 时间调节
+                "tshock.journey.time.setspeed", //时间速度
+                "tshock.journey.wind.strength", //风强度
+                "tshock.journey.wind.freeze",       //风控制
+                "tshock.journey.rain.strength", // 雨强度
+                "tshock.journey.rain.freeze",   //雨改变
+                "tshock.journey.godmode",   // 无敌模式
+                "tshock.journey.placementrange",    // 扩大放置范围
+                "tshock.journey.setspawnrate",          // 敌人生成速度
+                "tshock.journey.biomespreadfreeze", //腐化传染
+                "tshock.journey.setdifficulty"              // 游戏难度
+           };
+            // List<string> perms = TShockAPI.Handlers.NetModules.CreativePowerHandler.PermissionToDescriptionMap.Keys.ToList();
+            // if( !perms.Contains(Permissions.journey_contributeresearch) ){
+            //     perms.Add(Permissions.journey_contributeresearch);
+            // }
+        }
+
 
         public static List<string> GetDefaultPerms()
         {
@@ -112,7 +138,6 @@ namespace Plugin
             return new List<string>(){
                 // 4.5.12 default组 默认权限
                 // "tshock.warp",                                       // 传送点管理
-                "!tshock.warp",                                         // 移除传送点管理权限（在权限前添加!表示忽略这个权限）
                 // "tshock.account.changepassword",       // 更改密码
                 // "tshock.account.logout",             // 登出
                 // "tshock.npc.summonboss",			// 召唤boss

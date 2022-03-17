@@ -63,13 +63,11 @@ namespace Plugin
             TSPlayer op = args.Player;
             void ShowHelpText()
             {
-                op.SendInfoMessage("/fd init，快速处理好开服所需的权限和设置");
-                op.SendInfoMessage("/fd perm，给默认组设置常用权限，并新增GM超管组");
-                op.SendInfoMessage("/fd journey，授权默认组拥有旅行模式的全部权限");
-                op.SendInfoMessage("/fd add <指令>，授权使用某个指令");
-                op.SendInfoMessage("/fd del <指令>，取消某个指令的授权");
-                op.SendInfoMessage("/fd guest，设置插件的默认组为 guest");
-                op.SendInfoMessage("/fd default，设置插件的默认组为 default");
+                op.SendInfoMessage("/fd init，快速处理（开服通用权限和设置）");
+                op.SendInfoMessage("/fd perm，设置常用权限，并新增GM超管组");
+                op.SendInfoMessage("/fd allow <指令 | journey | warp add>，授权使用某指令");
+                op.SendInfoMessage("/fd del <指令>，取消指令授权");
+                op.SendInfoMessage("/fd <guest | default>，设置插件的默认组为 guest 或 default");
                 op.SendInfoMessage("/fd reload，重载配置");
             }
 
@@ -83,21 +81,14 @@ namespace Plugin
             {
                 // 快速开服
                 case "init":
+                case "i":
                     InitSever(op);
                     return;
 
                 //  基础权限
                 case "perm":
+                case "p":
                     InitPerm(op);
-                    return;
-
-                //  基础权限
-                case "journey":
-                case "jour":
-                case "旅行":
-                case "旅途":
-                case "旅程":
-                    InitJourney(op);
                     return;
 
                 //  将默认组设置成 default
@@ -109,23 +100,27 @@ namespace Plugin
                     return;
 
                 // 允许使用权限
-                case "add":
+                case "allow":
+                case "a":
                     AllowCommand(args);
                     return;
 
                 // 不允许使用权限
                 case "del":
+                case "d":
                     DisallowCommand(args);
                     return;
 
                 // 重载配置
                 case "reload":
+                case "r":
                     reload(true);
                     op.SendSuccessMessage("[FastDeploy]配置已重载！");
                     return;
 
                 // 帮助
                 case "help":
+                case "h":
                     ShowHelpText();
                     return;
             }
@@ -158,6 +153,7 @@ namespace Plugin
                 return foo ? "开启":"关闭";
             }
 
+            // https://tshock.readme.io/docs/config-settings
             List<string> msgs = new List<string>(){
                 $"-----[FastDeploy]快速开服-----",
                 "已做了如下操作（强制开荒等设置，需重启才能生效）：",
@@ -167,10 +163,11 @@ namespace Plugin
                 $"2.2 {GetDesc(_config.RequireLogin)} 注册登录（RequireLogin={_config.RequireLogin}）",
                 $"2.3 {GetDesc(_config.RequireLogin)} 调试（DebugLogs={_config.DebugLogs}）",
                 $"2.4 {GetDesc(_config.AnnounceSave)} 保存地图提示（AnnounceSave={_config.AnnounceSave}）",
-                $"2.5 {GetDesc(_config.EnableChatAboveHeads)} 头顶聊天文字（EnableChatAboveHeads={_config.EnableChatAboveHeads}）",
-                $"2.6 {GetDesc(_config.DisablePrimeBombs)} 禁用机械骷髅王炸弹（DisablePrimeBombs={_config.DisablePrimeBombs}）",
-                $"2.7 {_config.RespawnSeconds}s 复活时间（RespawnSeconds={_config.RespawnSeconds}）",
-                $"2.8 {_config.RespawnBossSeconds}s Boss战复活时间（RespawnBossSeconds={_config.RespawnBossSeconds}）",
+                $"2.5 {GetDesc(_config.ShowBackupAutosaveMessages)} 自动备份提示（AnnounceSave={_config.ShowBackupAutosaveMessages}）",
+                $"2.6 {GetDesc(_config.EnableChatAboveHeads)} 头顶聊天文字（EnableChatAboveHeads={_config.EnableChatAboveHeads}）",
+                $"2.7 {GetDesc(_config.DisablePrimeBombs)} 禁用机械骷髅王炸弹（DisablePrimeBombs={_config.DisablePrimeBombs}）",
+                $"2.8 {_config.RespawnSeconds}s 复活时间（RespawnSeconds={_config.RespawnSeconds}）",
+                $"2.9 {_config.RespawnBossSeconds}s Boss战复活时间（RespawnBossSeconds={_config.RespawnBossSeconds}）",
                 ""
             };
             op.SendSuccessMessage( string.Join("\n", msgs) );
@@ -226,26 +223,7 @@ namespace Plugin
         // 设置旅行模式权限
         private void InitJourney(TSPlayer op)
         {
-            List<string> perms = new List<string>()
-            {
-                "tshock.journey.research",      // 物品复制
-                "tshock.journey.time.freeze",   //时间冻结
-                "tshock.journey.time.set",      // 时间调节
-                "tshock.journey.time.setspeed", //时间速度
-                "tshock.journey.wind.strength", //风强度
-                "tshock.journey.wind.freeze",       //风控制
-                "tshock.journey.rain.strength", // 雨强度
-                "tshock.journey.rain.freeze",   //雨改变
-                "tshock.journey.godmode",   // 无敌模式
-                "tshock.journey.placementrange",    // 扩大放置范围
-                "tshock.journey.setspawnrate",          // 敌人生成速度
-                "tshock.journey.biomespreadfreeze", //腐化传染
-                "tshock.journey.setdifficulty"              // 游戏难度
-            };
-            // List<string> perms = TShockAPI.Handlers.NetModules.CreativePowerHandler.PermissionToDescriptionMap.Keys.ToList();
-            // if( !perms.Contains(Permissions.journey_contributeresearch) ){
-            //     perms.Add(Permissions.journey_contributeresearch);
-            // }
+            List<string> perms = Config.GetJourneyPerms();
 
             string msg = "";
             bool success = AddPerm(_config.Group, perms, out msg);
@@ -265,26 +243,55 @@ namespace Plugin
         {
             TSPlayer op = args.Player;
             if(args.Parameters.Count<2){
-                op.SendErrorMessage("语法错误，需要输入指令名称, 例如：/fd add tpnpc");
+                op.SendErrorMessage("语法错误，请提供要授权的指令名称, 例如：/fd allow tpnpc");
                 return;
             }
-            string cmdStr = args.Parameters[1];
 
-            foreach (Command cmd in Commands.ChatCommands)
+            args.Parameters.RemoveAt(0);
+            string cmdStr = string.Join("",args.Parameters);
+
+            List<string> perms = new List<string>();
+            // 特殊处理
+            switch (cmdStr)
             {
-                if( cmd.Names.Contains(cmdStr) )
+                // 设置旅行模式权限
+                case "journey":
+                case "jour":
+                    perms = Config.GetJourneyPerms();
+                    break;
+
+                // 传送点管理
+                case "warp add":
+                case "warp del":
+                case "warp hide":
+                case "warp send":
+                    perms.Add(Permissions.managewarp);
+                    break;
+            }
+
+            // 查找指令
+            if( perms.Count==0 ){
+                foreach (Command cmd in Commands.ChatCommands)
                 {
-                    string msg = "";
-                    bool success = AddPerm(_config.Group, cmd.Permissions, out msg);
-                    if( success )
+                    if( cmd.Names.Contains(cmdStr) )
                     {
-                        op.SendSuccessMessage($"成功添加以下权限到默认组({_config.Group}):");
-                        op.SendSuccessMessage( string.Join("\n", cmd.Permissions) );
-                    } else {
-                        op.SendErrorMessage($"操作失败!原因：{msg}");
+                        perms = cmd.Permissions;
+                        break;
                     }
                 }
             }
+
+            // 设置权限
+            string msg = "";
+            bool success = AddPerm(_config.Group, perms, out msg);
+            if( success )
+            {
+                op.SendSuccessMessage($"成功添加以下权限到默认组({_config.Group}):");
+                op.SendSuccessMessage( string.Join("\n", perms) );
+            } else {
+                op.SendErrorMessage($"操作失败!原因：{msg}");
+            }
+
         }
 
 
@@ -296,23 +303,53 @@ namespace Plugin
                 op.SendErrorMessage("语法错误，需要输入指令名称, 例如：/fd del tpnpc");
                 return;
             }
-            string cmdStr = args.Parameters[1];
+            args.Parameters.RemoveAt(0);
+            string cmdStr = string.Join("",args.Parameters);
 
-            foreach (Command cmd in Commands.ChatCommands)
+            List<string> perms = new List<string>();
+
+            // 特殊处理
+            switch (cmdStr)
             {
-                if( cmd.Names.Contains(cmdStr) )
+                // 设置旅行模式权限
+                case "journey":
+                case "jour":
+                    perms = Config.GetJourneyPerms();
+                    break;
+                
+                // 传送点管理
+                case "warp add":
+                case "warp del":
+                case "warp hide":
+                case "warp send":
+                    perms.Add(Permissions.managewarp);
+                    break;
+            }
+
+
+            // 查找指令
+            if( perms.Count==0 ){
+                foreach (Command cmd in Commands.ChatCommands)
                 {
-                    string msg = "";
-                    bool success = DeletePerm(_config.Group, cmd.Permissions, out msg);
-                    if( success )
+                    if( cmd.Names.Contains(cmdStr) )
                     {
-                        op.SendSuccessMessage($"已从默认组({_config.Group})移除了如下权限:");
-                        op.SendSuccessMessage( string.Join("\n", cmd.Permissions) );
-                    } else {
-                        op.SendErrorMessage($"操作失败!原因：{msg}");
+                        perms = cmd.Permissions;
+                        break;
                     }
                 }
             }
+
+            // 设置权限
+            string msg = "";
+            bool success = DeletePerm(_config.Group, perms, out msg);
+            if( success )
+            {
+                op.SendSuccessMessage($"已从默认组({_config.Group})移除了如下权限:");
+                op.SendSuccessMessage( string.Join("\n", perms) );
+            } else {
+                op.SendErrorMessage($"操作失败!原因：{msg}");
+            }
+
         }
 
 
