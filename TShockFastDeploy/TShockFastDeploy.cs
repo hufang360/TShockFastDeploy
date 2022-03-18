@@ -1,5 +1,4 @@
-﻿using System.Linq;
-using System;
+﻿using System;
 using System.IO;
 using System.Collections.Generic;
 using System.Reflection;
@@ -65,10 +64,14 @@ namespace Plugin
             {
                 op.SendInfoMessage("/fd init，快速处理（开服通用权限和设置）");
                 op.SendInfoMessage("/fd perm，设置常用权限，并新增GM超管组");
-                op.SendInfoMessage("/fd allow <指令 | journey | warp add>，授权使用某指令");
-                op.SendInfoMessage("/fd del <指令>，取消指令授权");
-                op.SendInfoMessage("/fd <guest | default>，设置插件的默认组为 guest 或 default");
+                op.SendInfoMessage("/fd group <组名称>，设置本插件的默认组名称");
                 op.SendInfoMessage("/fd reload，重载配置");
+                op.SendInfoMessage("输入 /fd help 2 查看更多");
+            }
+            void ShowHelpText2(){
+                op.SendInfoMessage("/fd add <指令>，指令授权");
+                op.SendInfoMessage("/fd del <指令>，取消授权");
+                op.SendInfoMessage("/fd refer <journey | ignore | tp>，授权参考");
             }
 
             if(args.Parameters.Count==0){
@@ -81,48 +84,75 @@ namespace Plugin
             {
                 // 快速开服
                 case "init":
-                case "i":
                     InitSever(op);
                     return;
 
                 //  基础权限
                 case "perm":
-                case "p":
                     InitPerm(op);
                     return;
 
-                //  将默认组设置成 default
-                //  将默认组设置成 guest
-                case "default":
-                case "guest":
-                    _config.Group = cmd;
-                    Save();
+                // 设置默认组
+                case "group":
+                    if( args.Parameters.Count<2 )
+                    {
+                        op.SendInfoMessage("输入错误，需要提供组名称，例如: /fd group default");
+                        return;
+                    }
+                    bool flag = false;
+                    string subcmd = args.Parameters[1].ToLowerInvariant();
+                    foreach (Group g in TShock.Groups.groups)
+                    {
+                        if( g.Name==subcmd )
+                        {
+                            flag = true;
+                            break;
+                        }
+                    }
+                    if( flag )
+                    {
+                        _config.Group = subcmd;
+                        Save();
+                    } else {
+                        op.SendInfoMessage($"{subcmd} 用户组不存在");
+                    }
                     return;
 
-                // 允许使用权限
-                case "allow":
-                case "a":
-                    AllowCommand(args);
+                // 给某个指令授权
+                case "add":
+                    AddAuth(args);
                     return;
 
-                // 不允许使用权限
+                // 取消授权
                 case "del":
-                case "d":
-                    DisallowCommand(args);
+                    DeleteAuth(args);
+                    return;
+
+                // 查看相关类别的权限
+                case "refer":
+                    if( args.Parameters.Count<2 )
+                    {
+                        op.SendInfoMessage("输入错误，例如: /fd refer tp");
+                        return;
+                    }
+                    ReferTopic(op, args.Parameters[1].ToLowerInvariant());
                     return;
 
                 // 重载配置
                 case "reload":
-                case "r":
                     reload(true);
                     op.SendSuccessMessage("[FastDeploy]配置已重载！");
                     return;
 
                 // 帮助
                 case "help":
-                case "h":
-                    ShowHelpText();
+                    if( args.Parameters.Count==2 )
+                        ShowHelpText2();
+                    else
+                        ShowHelpText();
                     return;
+                
+                default: ShowHelpText(); return;
             }
         }
 
@@ -163,7 +193,7 @@ namespace Plugin
                 $"2.2 {GetDesc(_config.RequireLogin)} 注册登录（RequireLogin={_config.RequireLogin}）",
                 $"2.3 {GetDesc(_config.RequireLogin)} 调试（DebugLogs={_config.DebugLogs}）",
                 $"2.4 {GetDesc(_config.AnnounceSave)} 保存地图提示（AnnounceSave={_config.AnnounceSave}）",
-                $"2.5 {GetDesc(_config.ShowBackupAutosaveMessages)} 自动备份提示（AnnounceSave={_config.ShowBackupAutosaveMessages}）",
+                $"2.5 {GetDesc(_config.ShowBackupAutosaveMessages)} 自动备份提示（ShowBackupAutosaveMessages={_config.ShowBackupAutosaveMessages}）",
                 $"2.6 {GetDesc(_config.EnableChatAboveHeads)} 头顶聊天文字（EnableChatAboveHeads={_config.EnableChatAboveHeads}）",
                 $"2.7 {GetDesc(_config.DisablePrimeBombs)} 禁用机械骷髅王炸弹（DisablePrimeBombs={_config.DisablePrimeBombs}）",
                 $"2.8 {_config.RespawnSeconds}s 复活时间（RespawnSeconds={_config.RespawnSeconds}）",
@@ -220,66 +250,18 @@ namespace Plugin
         }
 
 
-        // 设置旅行模式权限
-        private void InitJourney(TSPlayer op)
-        {
-            List<string> perms = Config.GetJourneyPerms();
-
-            string msg = "";
-            bool success = AddPerm(_config.Group, perms, out msg);
-            if( success )
-            {
-                op.SendSuccessMessage($"成功添加以下权限到默认组({_config.Group}):");
-                op.SendSuccessMessage( string.Join("\n", perms) );
-                op.SendSuccessMessage( $"输入 /group delperm {_config.Group} <权限...> 可删除对应权限");
-            } else {
-                op.SendErrorMessage($"操作失败!原因：{msg}");
-            }
-        }
-
-
-        // 允许使用指令
-        private void AllowCommand(CommandArgs args)
+        // 指令授权
+        private void AddAuth(CommandArgs args)
         {
             TSPlayer op = args.Player;
             if(args.Parameters.Count<2){
-                op.SendErrorMessage("语法错误，请提供要授权的指令名称, 例如：/fd allow tpnpc");
+                op.SendErrorMessage("语法错误，请提供要授权的指令名称, 例如：/fd add tpnpc");
                 return;
             }
 
             args.Parameters.RemoveAt(0);
             string cmdStr = string.Join("",args.Parameters);
-
-            List<string> perms = new List<string>();
-            // 特殊处理
-            switch (cmdStr)
-            {
-                // 设置旅行模式权限
-                case "journey":
-                case "jour":
-                    perms = Config.GetJourneyPerms();
-                    break;
-
-                // 传送点管理
-                case "warp add":
-                case "warp del":
-                case "warp hide":
-                case "warp send":
-                    perms.Add(Permissions.managewarp);
-                    break;
-            }
-
-            // 查找指令
-            if( perms.Count==0 ){
-                foreach (Command cmd in Commands.ChatCommands)
-                {
-                    if( cmd.Names.Contains(cmdStr) )
-                    {
-                        perms = cmd.Permissions;
-                        break;
-                    }
-                }
-            }
+            List<string> perms = FindACmdPerm(cmdStr);
 
             // 设置权限
             string msg = "";
@@ -296,7 +278,7 @@ namespace Plugin
 
 
         // 不允许使用指令
-        private void DisallowCommand(CommandArgs args)
+        private void DeleteAuth(CommandArgs args)
         {
             TSPlayer op = args.Player;
             if(args.Parameters.Count<2){
@@ -305,7 +287,23 @@ namespace Plugin
             }
             args.Parameters.RemoveAt(0);
             string cmdStr = string.Join("",args.Parameters);
+            List<string> perms = FindACmdPerm(cmdStr);
 
+            // 设置权限
+            string msg = "";
+            bool success = DeletePerm(_config.Group, perms, out msg);
+            if( success )
+            {
+                op.SendSuccessMessage($"已从默认组({_config.Group})移除了如下权限:");
+                op.SendSuccessMessage( string.Join("\n", perms) );
+            } else {
+                op.SendErrorMessage($"操作失败!原因：{msg}");
+            }
+
+        }
+
+        private List<string> FindACmdPerm(string cmdStr)
+        {
             List<string> perms = new List<string>();
 
             // 特殊处理
@@ -314,9 +312,9 @@ namespace Plugin
                 // 设置旅行模式权限
                 case "journey":
                 case "jour":
-                    perms = Config.GetJourneyPerms();
+                    perms = ConfigHelper.GetJourneyPerms();
                     break;
-                
+
                 // 传送点管理
                 case "warp add":
                 case "warp del":
@@ -338,18 +336,81 @@ namespace Plugin
                     }
                 }
             }
-
-            // 设置权限
-            string msg = "";
-            bool success = DeletePerm(_config.Group, perms, out msg);
-            if( success )
-            {
-                op.SendSuccessMessage($"已从默认组({_config.Group})移除了如下权限:");
-                op.SendSuccessMessage( string.Join("\n", perms) );
-            } else {
-                op.SendErrorMessage($"操作失败!原因：{msg}");
+            // 旅行相关
+            if( perms.Count==0 ){
+                foreach (Topic t in ConfigHelper.TopicJourney)
+                {
+                    if( t.cmd == cmdStr )
+                    {
+                        perms.Add(t.perm);
+                        break;
+                    }
+                }
             }
 
+            // ignore相关
+            if( perms.Count==0 ){
+                foreach (Topic t in ConfigHelper.TopicIgnore)
+                {
+                    if( t.cmd == cmdStr )
+                    {
+                        perms.Add(t.perm);
+                        break;
+                    }
+                }
+            }
+
+            // tp相关
+            if( perms.Count==0 ){
+                foreach (Topic t in ConfigHelper.TopicTP)
+                {
+                    if( t.cmd == cmdStr )
+                    {
+                        perms.Add(t.perm);
+                        break;
+                    }
+                }
+            }
+
+            return perms;
+        }
+
+        // 指令参考
+        private void ReferTopic(TSPlayer op, string topicName)
+        {
+            List<Topic> topics = new List<Topic>();
+            switch (topicName)
+            {
+                case "help":
+                    op.SendInfoMessage("可用的参考有 journey、ignore 和tp，示例：/fd refer tp");
+                    return;
+
+                case "journey":
+                case "jour":
+                    topics =  ConfigHelper.TopicJourney;
+                    break;
+
+                case "ignore":
+                case "ig":
+                    topics =  ConfigHelper.TopicIgnore;
+                    break;
+
+                case "tp":
+                    topics =  ConfigHelper.TopicTP;
+                    break;
+            }
+
+            if( topics.Count>0 )
+            {
+                string text = "权限名 | 描述 | 授权";
+                foreach (Topic t in topics)
+                {
+                    text += $"\n{t.perm} | {t.description} | /fd add {t.cmd}";
+                }
+                op.SendInfoMessage(text);
+            } else {
+                op.SendInfoMessage($"未提供 {topicName} 相关的参考");
+            }
         }
 
 
