@@ -1,6 +1,7 @@
 ﻿using System;
-using System.IO;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Reflection;
 using Terraria;
 using TerrariaApi.Server;
@@ -21,12 +22,11 @@ namespace Plugin
 
         private static Config _config;
 
+        private static readonly string FDPath = Path.Combine(TShock.SavePath, "FastDeploy");
+        private static readonly string FDConfigPath = Path.Combine(TShock.SavePath, "FastDeploy", "config.json");
 
-        private static string FDPath = Path.Combine(TShock.SavePath, "FastDeploy");
-        private static string FDConfigPath = Path.Combine(TShock.SavePath, "FastDeploy", "config.json");
-
-        private static string ConfigPath = Path.Combine(TShock.SavePath, "config.json");
-        private static string ServerSideCharacterConfigPath = Path.Combine(TShock.SavePath, "sscconfig.json");
+        private static readonly string ConfigPath = Path.Combine(TShock.SavePath, "config.json");
+        private static readonly string ServerSideCharacterConfigPath = Path.Combine(TShock.SavePath, "sscconfig.json");
 
 
         public Plugin(Main game) : base(game)
@@ -35,46 +35,58 @@ namespace Plugin
 
         public override void Initialize()
         {
-            Commands.ChatCommands.Add(new Command(new List<string>() {"fastdeploy"}, FastDeploy, "fastdeploy", "fd") { HelpText = "快速开服"});
+            Commands.ChatCommands.Add(new Command(new List<string>() { "fastdeploy", "tshock.journey.research" }, FastDeploy, "fastdeploy", "fd") { HelpText = "快速开服" });
 
             // 创建配置文件夹
-            if( !Directory.Exists(FDPath) )
+            if (!Directory.Exists(FDPath))
                 Directory.CreateDirectory(FDPath);
         }
 
         // 重载配置
-        public void reload(bool force=false)
+        private void Reload(bool force = false)
         {
-            if( _config==null || force )
+            if (_config == null || force)
                 _config = Config.Load(FDConfigPath);
         }
 
         // 保存配置
-        public void Save(){
-            Config.Save(_config,  FDConfigPath);
+        private void Save()
+        {
+            Config.Save(_config, FDConfigPath);
         }
 
-
+        // command
         private void FastDeploy(CommandArgs args)
         {
-            reload();
+            Reload();
 
             TSPlayer op = args.Player;
             void ShowHelpText()
             {
-                op.SendInfoMessage("/fd init，快速处理（开服通用权限和设置）");
-                op.SendInfoMessage("/fd perm，设置常用权限，并新增GM超管组");
-                op.SendInfoMessage("/fd group <组名称>，设置本插件的默认组名称");
-                op.SendInfoMessage("/fd reload，重载配置");
-                op.SendInfoMessage("输入 /fd help 2 查看更多");
-            }
-            void ShowHelpText2(){
-                op.SendInfoMessage("/fd add <指令>，指令授权");
-                op.SendInfoMessage("/fd del <指令>，取消授权");
-                op.SendInfoMessage("/fd refer <journey | ignore | tp>，授权参考");
+                if (!PaginationTools.TryParsePageNumber(args.Parameters, 1, op, out int pageNumber))
+                    return;
+                List<string> lines = new List<string>() {
+                    "/fd init，快速处理（开服通用权限和设置）",
+                    "/fd perm，设置常用权限，并新增GM超管组",
+                    "/fd group <组名称>，设置本插件的默认组名称",
+                    "/fd reload，重载配置",
+                    "/fd add <指令>，指令授权",
+                    "/fd del <指令>，取消授权",
+                    "/fd list，列出已授权的指令",
+                    "/fd refer <journey | ignore | tp>，授权参考"
+                };
+                PaginationTools.SendPage(
+                    op, pageNumber, lines,
+                    new PaginationTools.Settings
+                    {
+                        HeaderFormat = "【快速开服】指令帮助 ({0}/{1})：",
+                        FooterFormat = "输入 {0}fd help {{0}} 查看更多".SFormat(Specifier)
+                    }
+                );
             }
 
-            if(args.Parameters.Count==0){
+            if (args.Parameters.Count == 0)
+            {
                 ShowHelpText();
                 return;
             }
@@ -94,26 +106,19 @@ namespace Plugin
 
                 // 设置默认组
                 case "group":
-                    if( args.Parameters.Count<2 )
+                    if (args.Parameters.Count < 2)
                     {
-                        op.SendInfoMessage("输入错误，需要提供组名称，例如: /fd group default");
+                        op.SendInfoMessage($"默认组为 {_config.Group}，输入 /fd group <default> 可进行更改");
                         return;
                     }
-                    bool flag = false;
                     string subcmd = args.Parameters[1].ToLowerInvariant();
-                    foreach (Group g in TShock.Groups.groups)
-                    {
-                        if( g.Name==subcmd )
-                        {
-                            flag = true;
-                            break;
-                        }
-                    }
-                    if( flag )
+                    if (GroupExists(subcmd))
                     {
                         _config.Group = subcmd;
                         Save();
-                    } else {
+                    }
+                    else
+                    {
                         op.SendInfoMessage($"{subcmd} 用户组不存在");
                     }
                     return;
@@ -128,9 +133,14 @@ namespace Plugin
                     DeleteAuth(args);
                     return;
 
+                // 列出授权指令
+                case "list":
+                    ListAuth(args);
+                    return;
+
                 // 查看相关类别的权限
                 case "refer":
-                    if( args.Parameters.Count<2 )
+                    if (args.Parameters.Count < 2)
                     {
                         op.SendInfoMessage("输入错误，例如: /fd refer tp");
                         return;
@@ -140,19 +150,15 @@ namespace Plugin
 
                 // 重载配置
                 case "reload":
-                    reload(true);
+                    Reload(true);
                     op.SendSuccessMessage("[FastDeploy]配置已重载！");
                     return;
 
                 // 帮助
+                default:
                 case "help":
-                    if( args.Parameters.Count==2 )
-                        ShowHelpText2();
-                    else
-                        ShowHelpText();
+                    ShowHelpText();
                     return;
-                
-                default: ShowHelpText(); return;
             }
         }
 
@@ -160,6 +166,7 @@ namespace Plugin
         // 设置 快速开服
         private void InitSever(TSPlayer op)
         {
+            #region json file
             // 修改 sscconfig.json 更新此文件需重启服务器
             TShock.ServerSideCharacterConfig.Settings.Enabled = _config.SSCEnable;
             TShock.ServerSideCharacterConfig.Write(ServerSideCharacterConfigPath);
@@ -177,10 +184,11 @@ namespace Plugin
 
             // 重载配置
             TShock.Utils.Reload();
-			TShockAPI.Hooks.GeneralHooks.OnReloadEvent(op);
+            TShockAPI.Hooks.GeneralHooks.OnReloadEvent(op);
 
-            string GetDesc(bool foo ){
-                return foo ? "开启":"关闭";
+            string GetDesc(bool foo)
+            {
+                return foo ? "开启" : "关闭";
             }
 
             // https://tshock.readme.io/docs/config-settings
@@ -200,53 +208,60 @@ namespace Plugin
                 $"2.9 {_config.RespawnBossSeconds}s Boss战复活时间（RespawnBossSeconds={_config.RespawnBossSeconds}）",
                 ""
             };
-            op.SendSuccessMessage( string.Join("\n", msgs) );
+            op.SendSuccessMessage(string.Join("\n", msgs));
+            #endregion
 
-
+            #region default perm
             // 设置权限
-            string msg = "";
-            bool success = AddPerm(_config.Group,  _config.Permissions, out msg);
-            if( success ){
+            if (AddPerm(_config.Group, _config.Permissions, out string msg))
+            {
                 op.SendSuccessMessage($"3 成功添加以下权限到默认组({_config.Group}):");
-                op.SendSuccessMessage( string.Join("\n", _config.Permissions) );
-                op.SendSuccessMessage( $"输入 [c/96FF96:{Specifier}group delperm {_config.Group} <权限...>] 可删除对应权限\n");
-            } else {
+                op.SendSuccessMessage(string.Join("\n", _config.Permissions));
+                op.SendSuccessMessage($"输入 [c/96FF96:{Specifier}group delperm {_config.Group} <权限...>] 可删除对应权限\n");
+            }
+            else
+            {
                 op.SendErrorMessage($"3 添加权限到默认组时失败！原因：{msg}\n");
             }
+            #endregion
 
-            msg = "";
-            // success = AddGroup("GM","*,!tshock.ignore.ssc", out msg);
-            success = AddGroup("GM",string.Join(",", _config.GMPermissions), out msg);
-            if( success ){
-                op.SendSuccessMessage($"4 已新建 GM 超管组，并添加了以下权限:");
-                op.SendSuccessMessage( string.Join("\n", _config.GMPermissions) );
-                op.SendSuccessMessage( $"输入 [c/96FF96:{Specifier}user group <玩家名> GM] 添加服主");
 
-                return;
+            #region group
+            // 组操作
+            if (AddGroup("GM", ListToComma(_config.GMPermissions), out msg))
+            {
+                op.SendSuccessMessage($"4 已添加以下权限到 GM 超管组:");
+                op.SendSuccessMessage(string.Join("\n", _config.GMPermissions));
+                op.SendSuccessMessage($"输入 [c/96FF96:{Specifier}user group <玩家名> GM] 添加服主");
             }
-
-            if( msg!="组已存在" ){
-                op.SendErrorMessage($"操作失败！原因：{msg}");
-                return;
-            }
-
-            msg = "";
-            success = AddPerm("GM",  _config.GMPermissions, out msg);
-            if( success ){
-                op.SendSuccessMessage($"4 成功添加以下权限到 GM 超管组:");
-                op.SendSuccessMessage( string.Join("\n", _config.GMPermissions) );
-                op.SendSuccessMessage( $"输入 [c/96FF96:{Specifier}user group <玩家名> GM] 添加服主");
-            } else {
+            else
+            {
                 op.SendErrorMessage($"4 添加权限到 GM 超管组时失败！原因：{msg}");
             }
+            #endregion
         }
 
 
         // 设置权限
         private void InitPerm(TSPlayer op)
         {
-            AddDefaultPermission(op);
-            AddGMGroup(op);
+            // 为默认组添加权限
+            if (AddPerm(_config.Group, _config.Permissions, out string msg))
+            {
+                op.SendSuccessMessage($"成功添加以下权限到默认组({_config.Group}):");
+                op.SendSuccessMessage(string.Join("\n", _config.Permissions));
+                op.SendSuccessMessage($"输入 /group delperm <组名> <权限...> 可删除对应权限");
+            }
+            else
+            {
+                op.SendErrorMessage($"操作失败！原因：{msg}");
+            }
+
+            // 新建GM组
+            if (AddGroup("GM", ListToComma(_config.GMPermissions), out msg))
+                op.SendSuccessMessage("已新增 GM 超管组，输入 [c/96FF96:/user group <玩家名> GM] 添加服主");
+            else
+                op.SendErrorMessage($"操作失败！原因：{msg}");
         }
 
 
@@ -254,23 +269,37 @@ namespace Plugin
         private void AddAuth(CommandArgs args)
         {
             TSPlayer op = args.Player;
-            if(args.Parameters.Count<2){
+            if (args.Parameters.Count < 2)
+            {
                 op.SendErrorMessage("语法错误，请提供要授权的指令名称, 例如：/fd add tpnpc");
                 return;
             }
 
             args.Parameters.RemoveAt(0);
-            string cmdStr = string.Join("",args.Parameters);
+            string cmdStr = string.Join(" ", args.Parameters);
             List<string> perms = FindACmdPerm(cmdStr);
+            if (perms.Count == 0)
+            {
+                op.SendSuccessMessage($"暂时无法处理 {cmdStr} 指令");
+                return;
+            }
+
+            //权限已存在时
+            if (GroupContainPerms(_config.Group, perms))
+            {
+                op.SendSuccessMessage($"{Specifier}{cmdStr} 指令已经授权过了！此指令所需的权限已经存在于默认组({_config.Group}):");
+                op.SendSuccessMessage(string.Join("\n", perms));
+                return;
+            }
 
             // 设置权限
-            string msg = "";
-            bool success = AddPerm(_config.Group, perms, out msg);
-            if( success )
+            if (AddPerm(_config.Group, perms, out string msg))
             {
-                op.SendSuccessMessage($"成功添加以下权限到默认组({_config.Group}):");
-                op.SendSuccessMessage( string.Join("\n", perms) );
-            } else {
+                op.SendSuccessMessage($"{Specifier}{cmdStr} 指令授权成功！以下权限被添加到默认组({_config.Group}):");
+                op.SendSuccessMessage(string.Join("\n", perms));
+            }
+            else
+            {
                 op.SendErrorMessage($"操作失败!原因：{msg}");
             }
 
@@ -281,25 +310,60 @@ namespace Plugin
         private void DeleteAuth(CommandArgs args)
         {
             TSPlayer op = args.Player;
-            if(args.Parameters.Count<2){
+            if (args.Parameters.Count < 2)
+            {
                 op.SendErrorMessage("语法错误，需要输入指令名称, 例如：/fd del tpnpc");
                 return;
             }
             args.Parameters.RemoveAt(0);
-            string cmdStr = string.Join("",args.Parameters);
+            string cmdStr = string.Join("", args.Parameters);
             List<string> perms = FindACmdPerm(cmdStr);
 
             // 设置权限
-            string msg = "";
-            bool success = DeletePerm(_config.Group, perms, out msg);
-            if( success )
+            if (DeletePerm(_config.Group, perms, out string msg))
             {
-                op.SendSuccessMessage($"已从默认组({_config.Group})移除了如下权限:");
-                op.SendSuccessMessage( string.Join("\n", perms) );
-            } else {
+                op.SendSuccessMessage($"已取消 {Specifier}{cmdStr} 指令的授权，默认组({_config.Group})中已无如下权限:");
+                op.SendSuccessMessage(string.Join("\n", perms));
+            }
+            else
+            {
                 op.SendErrorMessage($"操作失败!原因：{msg}");
             }
 
+        }
+
+
+        // 列出授权的指令
+        private void ListAuth(CommandArgs args)
+        {
+            if (!PaginationTools.TryParsePageNumber(args.Parameters, 1, args.Player, out int pageNumber))
+                return;
+
+            IEnumerable<string> cmdNames = from cmd in Commands.ChatCommands
+                                           where CanRunCommand(cmd, _config.Group) && (cmd.Name != "setup" || TShock.SetupToken != 0)
+                                           select Specifier + cmd.Name;
+
+            PaginationTools.SendPage(args.Player, pageNumber, PaginationTools.BuildLinesFromTerms(cmdNames),
+                new PaginationTools.Settings
+                {
+                    HeaderFormat = "默认组（"+_config.Group+"）可用的指令 ({0}/{1}):",
+                    FooterFormat = "输入 {0}fd list {{0}} 查看更多".SFormat(Specifier)
+                });
+        }
+        private bool CanRunCommand(Command cmd, string grpName)
+        {
+            if (cmd.Permissions == null || cmd.Permissions.Count < 1)
+                return true;
+            if (!GroupExists(grpName))
+                return false;
+
+            Group grp = TShock.Groups.GetGroupByName(grpName);
+            foreach (var Permission in cmd.Permissions)
+            {
+                if (grp.Permissions.Contains(Permission))
+                    return true;
+            }
+            return false;
         }
 
         private List<string> FindACmdPerm(string cmdStr)
@@ -326,10 +390,11 @@ namespace Plugin
 
 
             // 查找指令
-            if( perms.Count==0 ){
+            if (perms.Count == 0)
+            {
                 foreach (Command cmd in Commands.ChatCommands)
                 {
-                    if( cmd.Names.Contains(cmdStr) )
+                    if (cmd.Names.Contains(cmdStr))
                     {
                         perms = cmd.Permissions;
                         break;
@@ -337,10 +402,11 @@ namespace Plugin
                 }
             }
             // 旅行相关
-            if( perms.Count==0 ){
+            if (perms.Count == 0)
+            {
                 foreach (Topic t in ConfigHelper.TopicJourney)
                 {
-                    if( t.cmd == cmdStr )
+                    if (t.cmd == cmdStr)
                     {
                         perms.Add(t.perm);
                         break;
@@ -349,10 +415,11 @@ namespace Plugin
             }
 
             // ignore相关
-            if( perms.Count==0 ){
+            if (perms.Count == 0)
+            {
                 foreach (Topic t in ConfigHelper.TopicIgnore)
                 {
-                    if( t.cmd == cmdStr )
+                    if (t.cmd == cmdStr)
                     {
                         perms.Add(t.perm);
                         break;
@@ -361,10 +428,11 @@ namespace Plugin
             }
 
             // tp相关
-            if( perms.Count==0 ){
+            if (perms.Count == 0)
+            {
                 foreach (Topic t in ConfigHelper.TopicTP)
                 {
-                    if( t.cmd == cmdStr )
+                    if (t.cmd == cmdStr)
                     {
                         perms.Add(t.perm);
                         break;
@@ -387,20 +455,20 @@ namespace Plugin
 
                 case "journey":
                 case "jour":
-                    topics =  ConfigHelper.TopicJourney;
+                    topics = ConfigHelper.TopicJourney;
                     break;
 
                 case "ignore":
                 case "ig":
-                    topics =  ConfigHelper.TopicIgnore;
+                    topics = ConfigHelper.TopicIgnore;
                     break;
 
                 case "tp":
-                    topics =  ConfigHelper.TopicTP;
+                    topics = ConfigHelper.TopicTP;
                     break;
             }
 
-            if( topics.Count>0 )
+            if (topics.Count > 0)
             {
                 string text = "权限名 | 描述 | 授权";
                 foreach (Topic t in topics)
@@ -408,39 +476,10 @@ namespace Plugin
                     text += $"\n{t.perm} | {t.description} | /fd add {t.cmd}";
                 }
                 op.SendInfoMessage(text);
-            } else {
+            }
+            else
+            {
                 op.SendInfoMessage($"未提供 {topicName} 相关的参考");
-            }
-        }
-
-
-        // 为默认组添加权限
-        private void AddDefaultPermission(TSPlayer op)
-        {
-            string msg = "";
-            bool success = AddPerm(_config.Group,  _config.Permissions, out msg);
-            if( success ){
-                op.SendSuccessMessage($"成功添加以下权限到默认组({_config.Group}):");
-                op.SendSuccessMessage( string.Join("\n", _config.Permissions) );
-                op.SendSuccessMessage( $"输入 /group delperm <组名> <权限...> 可删除对应权限");
-            } else {
-                op.SendErrorMessage($"操作失败！原因：{msg}");
-            }
-        }
-
-
-         // 新建GM组
-        private void AddGMGroup(TSPlayer op)
-        {
-            string msg = "";
-            bool success = AddGroup("GM","*,!tshock.ignore.ssc", out msg);
-            if( success ){
-                op.SendSuccessMessage("已新增 GM 超管组，输入 [c/96FF96:/user group <玩家名> GM] 添加服主");
-            } else {
-                if( msg=="组已存在" )
-                    op.SendInfoMessage("组已存在，输入 [c/96FF96:/user group <玩家名> GM] 添加服主");
-                else
-                    op.SendErrorMessage($"操作失败！原因：{msg}");
             }
         }
 
@@ -450,41 +489,37 @@ namespace Plugin
         {
             try
             {
-                TShock.Groups.AddGroup(groupName, null, permissions, TShockAPI.Group.defaultChatColor);
-                result = "添加组成功!";
-            }
-            catch (GroupExistsException)
-            {
-                result = "组已存在";
-                return false;
+                if (GroupExists(groupName))
+                    TShock.Groups.AddPermissions(groupName, CommaToList(permissions));
+                else
+                    TShock.Groups.AddGroup(groupName, null, permissions, Group.defaultChatColor);
             }
             catch (GroupManagerException ex)
             {
                 result = ex.ToString();
                 return false;
             }
+            result = "";
             return true;
         }
-
 
         // 添加权限方法
         private bool AddPerm(string groupName, List<string> permissions, out string result)
         {
-            result = "";
             try
             {
-                string response = TShock.Groups.AddPermissions(groupName, permissions);
-                if (response.Length > 0)
-                {
-                    result = response;
-                }
+                if (GroupExists(groupName))
+                    TShock.Groups.AddPermissions(groupName, permissions);
+                else
+                    TShock.Groups.AddGroup(groupName, null, ListToComma(permissions), Group.defaultChatColor);
+                result = "";
+                return true;
             }
             catch (GroupManagerException ex)
             {
                 result = ex.ToString();
                 return false;
             }
-            return true;
         }
 
 
@@ -508,10 +543,42 @@ namespace Plugin
             return true;
         }
 
+
+        //组是否包含指定权限
+        private bool GroupContainPerms(string groupName, List<string> permissions)
+        {
+            if (GroupExists(groupName))
+            {
+                Group grp = TShock.Groups.GetGroupByName(groupName);
+                foreach (string perm in permissions)
+                {
+                    if (!grp.TotalPermissions.Contains(perm))
+                        return false;
+                }
+                return true;
+            }
+            return false;
+        }
+
+        private List<string> CommaToList(string line)
+        {
+            return new List<string>(line.Split(','));
+        }
+
+        private string ListToComma(List<string> lines)
+        {
+            return string.Join(",", lines);
+        }
+
+        private bool GroupExists(string groupName)
+        {
+            return TShock.Groups.GroupExists(groupName);
+        }
+
         internal static string Specifier
-		{
-			get { return Commands.Specifier; }
-		}
+        {
+            get { return Commands.Specifier; }
+        }
 
     }
 }
